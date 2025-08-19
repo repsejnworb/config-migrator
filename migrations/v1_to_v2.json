@@ -1,0 +1,25 @@
+{
+    "from": "1.0",
+    "to": "2.0",
+    "steps": [
+        {
+            "op": "move",
+            "from": "router/securityEnabled",
+            "to": "router/security/enabled"
+        },
+        {
+            "op": "wrap",
+            "path": "router/security",
+            "wrapAs": "roles"
+        },
+        {
+            "op": "mapArray",
+            "path": "router/security/roles/*/permissions",
+            "rule": {
+                "stringToObject": true,
+                "separator": ":",
+                "value": true
+            }
+        }
+    ]
+}
