@@ -1,0 +1,13 @@
+{
+  "router": {
+    "listenPort": 3000,
+    "endpoints": {"get": "/api/data", "post": "/api/data"},
+    "middlewares": {"request": ["logger", "auth"], "response": ["cors"]},
+    "errorHandling": {"enabled": true, "logLevel": "error"},
+    "security": [
+      {"name": "user", "permissions": ["read:data"]},
+      {"name": "admin", "permissions": ["read:data", "write:data", "delete:data"]}
+    ],
+    "securityEnabled": true
+  }
+}

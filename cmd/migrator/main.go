@@ -1,45 +1,49 @@
 package main
 
 import (
-	"encoding/json"
-	"flag"
-	"fmt"
-	"os"
+    "encoding/json"
+    "flag"
+    "fmt"
+    "os"
+    "strings"
 
-	"config-migrator/pkg/migrator"
+    "config-migrator/pkg/migrator"
 )
 
 func main() {
-	from := flag.String("from", "", "source version")
-	to := flag.String("to", "", "target version")
-	input := flag.String("in", "", "input config file")
-	migFile := flag.String("mig", "", "migration file")
-	flag.Parse()
+    migrationsDir := flag.String("migrations", "./migrations", "directory containing forward migration JSON files")
+    from := flag.String("from", "", "source version")
+    to := flag.String("to", "", "target version")
+    in := flag.String("in", "", "input config JSON file")
+    out := flag.String("out", "-", "output file ('-' for stdout)")
+    pretty := flag.Bool("pretty", true, "pretty-print JSON")
+    flag.Parse()
 
-	if *from == "" || *to == "" || *input == "" || *migFile == "" {
-		fmt.Println("Usage: migrator --from v1 --to v2 --in config.json --mig migrations/v1_to_v2.json")
-		os.Exit(1)
-	}
+    if *from == "" || *to == "" || *in == "" {
+        fmt.Println("Usage: migrator --migrations ./migrations --from 1.0 --to 2.0 --in ./examples/v1_config.json [--out -] [--pretty]")
+        os.Exit(1)
+    }
 
-	engine := migrator.NewEngine()
-	if err := engine.LoadMigration(*migFile); err != nil {
-		panic(err)
-	}
+    eng := migrator.NewEngine()
+    if err := eng.LoadAll(*migrationsDir); err != nil { panic(err) }
 
-	raw, err := os.ReadFile(*input)
-	if err != nil {
-		panic(err)
-	}
-	var cfg map[string]interface{}
-	if err := json.Unmarshal(raw, &cfg); err != nil {
-		panic(err)
-	}
+    raw, err := os.ReadFile(*in)
+    if err != nil { panic(err) }
+    var cfg map[string]interface{}
+    if err := json.Unmarshal(raw, &cfg); err != nil { panic(err) }
 
-	newCfg, err := engine.Apply(cfg, *from, *to)
-	if err != nil {
-		panic(err)
-	}
+    outCfg, err := eng.Apply(cfg, *from, *to)
+    if err != nil { panic(err) }
 
-	out, _ := json.MarshalIndent(newCfg, "", " ")
-	fmt.Println(string(out))
+    var enc []byte
+    if *pretty { enc, _ = json.MarshalIndent(outCfg, "", "  ") } else { enc, _ = json.Marshal(outCfg) }
+
+    if *out == "-" {
+        os.Stdout.Write(enc)
+        if *pretty { os.Stdout.WriteString("
+") }
+        return
+    }
+    if err := os.WriteFile(*out, enc, 0o644); err != nil { panic(err) }
+    fmt.Fprintln(os.Stderr, "wrote", strings.TrimSpace(*out))
 }
