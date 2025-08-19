@@ -7,7 +7,7 @@ import (
     "os"
     "strings"
 
-    "config-migrator/pkg/migrator"
+    "repsejnworb/config-migrator/pkg/migrator"
 )
 
 func main() {
