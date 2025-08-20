@@ -224,45 +224,36 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 		if hasWildcard(step.Path) {
 			return fmt.Errorf("set: wildcards not allowed: %s", step.Path)
 		}
-		// default literal value
-		v := step.Rule["value"]
 
-		// check for conditional rules
-		if condsRaw, ok := step.Rule["conditions"].([]interface{}); ok {
-			// get current value at path
-			curVal, ok, err := getAtPath(cfg, step.Path)
-			if err != nil {
-				return fmt.Errorf("conditional set: reading current value: %w", err)
-			}
-
-			if ok { // only apply conditions if path exists
-				for _, c := range condsRaw {
-					condMap, ok := c.(map[string]interface{})
-					if !ok {
-						continue
-					}
-					ifCond, _ := condMap["if"].(map[string]interface{})
-					thenVal := condMap["then"]
-
-					matched := false
-					// currently support simple "equals" condition
-					if eq, exists := ifCond["equals"]; exists {
-						if eq == curVal {
-							matched = true
-						}
-					}
-
-					// extend here with other condition types in future: exists, lt, regex, etc.
-
-					if matched {
-						v = thenVal
+		var newVal interface{}
+		// conditional logic
+		if conds, ok := step.Rule["conditions"].([]interface{}); ok {
+			// get current value
+			cur, _, _ := getAtPath(cfg, step.Path)
+			applied := false
+			for _, c := range conds {
+				condMap, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if pred, ok := condMap["if"].(map[string]interface{}); ok {
+					if matchesCondition(cur, pred) {
+						newVal = condMap["then"]
+						applied = true
 						break
 					}
 				}
 			}
+			if !applied {
+				newVal = cur // keep original if no condition matched
+			}
+		} else if v, ok := step.Rule["value"]; ok {
+			newVal = v
+		} else {
+			return fmt.Errorf("set: missing 'value' or 'conditions'")
 		}
 
-		return setAtPath(cfg, step.Path, v)
+		return setAtPath(cfg, step.Path, newVal)
 
 	case "delete":
 		if hasWildcard(step.Path) {
@@ -271,6 +262,20 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 		return deleteAtPath(cfg, step.Path)
 	}
 	return fmt.Errorf("unsupported op %q", step.Op)
+}
+
+func matchesCondition(val interface{}, cond map[string]interface{}) bool {
+	if eq, ok := cond["equals"]; ok {
+		return val == eq
+	}
+	if neq, ok := cond["notEquals"]; ok {
+		return val != neq
+	}
+	if exists, ok := cond["exists"].(bool); ok {
+		return (val != nil) == exists
+	}
+	// add more predicates as needed
+	return false
 }
 
 func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, error) {
