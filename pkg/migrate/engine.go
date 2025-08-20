@@ -489,6 +489,49 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 			return MigrationStep{}, false
 		}
 		return MigrationStep{Op: "mapArray", Path: s.Path, Rule: r}, true
+
+	case "set":
+		r := map[string]interface{}{}
+
+		// handle conditional rules
+		if conds, ok := s.Rule["conditions"].([]interface{}); ok {
+			invConds := []interface{}{}
+			for _, c := range conds {
+				cMap, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if ifCond, ok := cMap["if"].(map[string]interface{}); ok {
+					thenVal := cMap["then"]
+					// invert equals ↔ then for downgrade
+					if eqVal, ok := ifCond["equals"]; ok {
+						invConds = append(invConds, map[string]interface{}{
+							"if":   map[string]interface{}{"equals": thenVal},
+							"then": eqVal,
+						})
+					} else {
+						return MigrationStep{}, false
+					}
+				}
+			}
+			if len(invConds) > 0 {
+				r["conditions"] = invConds
+			} else {
+				return MigrationStep{}, false
+			}
+			// also copy else if present
+			if elseVal, ok := s.Rule["else"]; ok {
+				r["else"] = elseVal
+			}
+		} else if v, ok := s.Rule["value"]; ok {
+			// simple value copy
+			r["value"] = v
+		} else {
+			return MigrationStep{}, false
+		}
+
+		return MigrationStep{Op: "set", Path: s.Path, Rule: r}, true
+
 	default:
 		return MigrationStep{}, false
 	}
