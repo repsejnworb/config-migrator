@@ -28,24 +28,34 @@ func (v *Validator) LoadAll(dir string) error {
 		if ent.IsDir() || filepath.Ext(ent.Name()) != ".json" {
 			continue
 		}
+		// version without extension, e.g. "v1" from "v1.json"
 		version := ent.Name()
-		version = version[:len(version)-len(filepath.Ext(version))] // strip .json
+		version = version[:len(version)-len(filepath.Ext(version))]
 
 		path := filepath.Join(dir, ent.Name())
+
+		// Open file and register it under the resource name equal to the file name (e.g. "v1.json")
 		f, err := os.Open(path)
 		if err != nil {
 			return fmt.Errorf("failed to open schema %s: %w", path, err)
 		}
-		defer f.Close()
 
 		compiler := jsonschema.NewCompiler()
-		if err := compiler.AddResource(path, f); err != nil {
+
+		resourceName := ent.Name() // use the filename (with .json) as the resource key
+		if err := compiler.AddResource(resourceName, f); err != nil {
+			f.Close()
 			return fmt.Errorf("failed to add schema resource %s: %w", path, err)
 		}
-		sch, err := compiler.Compile(version)
+
+		// Compile using the same resource name
+		sch, err := compiler.Compile(resourceName)
+		// Close file after compile (compiler will have read it)
+		_ = f.Close()
 		if err != nil {
 			return fmt.Errorf("compile schema %s: %w", ent.Name(), err)
 		}
+
 		v.schemas[version] = sch
 	}
 	return nil

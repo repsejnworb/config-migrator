@@ -45,6 +45,7 @@ func (e *Engine) LoadAll(dir string) error {
 		if err := e.addMigration(m); err != nil {
 			return err
 		}
+		fmt.Println("Loaded migration:", m.From, "->", m.To)
 		// auto-generate reverse if possible and not already present
 		rev, err := GenerateReverse(m)
 		if err == nil {
