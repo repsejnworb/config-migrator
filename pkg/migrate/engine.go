@@ -12,10 +12,16 @@ import (
 type Engine struct {
 	migrations map[string]Migration // key: from->to
 	graph      map[string][]string  // adjacency list
+	validator  *Validator           // optional schema validator
 }
 
 func NewEngine() *Engine {
-	return &Engine{migrations: make(map[string]Migration), graph: make(map[string][]string)}
+	return &Engine{migrations: make(map[string]Migration), graph: make(map[string][]string), validator: nil}
+}
+
+func (e *Engine) WithValidator(v *Validator) *Engine {
+	e.validator = v
+	return e
 }
 
 // LoadAll reads all *.json migrations in dir, registers them, and auto-generates reverse ones.
@@ -85,6 +91,12 @@ func (e *Engine) Apply(config map[string]interface{}, from, to string) (map[stri
 		}
 		if err := e.applyMigration(doc, mig); err != nil {
 			return nil, fmt.Errorf("apply %s->%s: %w", a, b, err)
+		}
+	}
+	// validate final result against "to" schema if validator present
+	if e.validator != nil {
+		if err := e.validator.Validate(to, doc); err != nil {
+			return nil, err
 		}
 	}
 	return doc, nil

@@ -12,6 +12,7 @@ import (
 
 func main() {
     migrationsDir := flag.String("migrations", "./migrations", "directory containing forward migration JSON files")
+    schemasDir := flag.String("schemas", "", "directory containing JSON Schemas (optional)")
     from := flag.String("from", "", "source version")
     to := flag.String("to", "", "target version")
     in := flag.String("in", "", "input config JSON file")
@@ -25,6 +26,15 @@ func main() {
     }
 
     eng := migrator.NewEngine()
+
+    if *schemasDir != "" {
+        v := migrate.NewValidator()
+        if err := v.LoadAll(*schemasDir); err != nil {
+            panic(err)
+        }
+        eng.WithValidator(v)
+    }
+
     if err := eng.LoadAll(*migrationsDir); err != nil { panic(err) }
 
     raw, err := os.ReadFile(*in)
