@@ -150,66 +150,49 @@ func deleteAtPath(root map[string]interface{}, path string) error {
 	return nil
 }
 
-func findArrays(cfg map[string]interface{}, path string) ([][]interface{}, error) {
-	var result [][]interface{}
-	paths := resolveWildcardPaths(cfg, path)
-	for _, p := range paths {
-		v, ok, err := getAtPath(cfg, p)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		arr, ok := v.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("mapArray: expected array at %s, got %T", p, v)
-		}
-		result = append(result, arr)
-	}
-	if len(result) == 0 {
-		return nil, fmt.Errorf("mapArray: no arrays found at %s", path)
-	}
-	return result, nil
-}
-
-// resolveWildcardPaths returns all concrete paths matching wildcards
-func resolveWildcardPaths(cfg map[string]interface{}, path string) []string {
+// findArrays returns all arrays that match a wildcard path (e.g., a/*/b/*/c)
+func findArrays(root map[string]interface{}, path string) ([][]interface{}, error) {
 	segs := split(path)
-	var paths []string
-	var walk func(curr map[string]interface{}, sofar []string)
-	walk = func(curr map[string]interface{}, sofar []string) {
-		if len(segs) == len(sofar) {
-			paths = append(paths, strings.Join(sofar, "/"))
-			return
+	var out [][]interface{}
+	var walk func(cur interface{}, i int) error
+	walk = func(cur interface{}, i int) error {
+		if i == len(segs) {
+			if arr, ok := cur.([]interface{}); ok {
+				out = append(out, arr)
+				return nil
+			}
+			return fmt.Errorf("expected array at end of %q, got %T", path, cur)
 		}
-		seg := segs[len(sofar)]
-		if seg == "*" {
-			for k, v := range curr {
-				switch vv := v.(type) {
-				case map[string]interface{}:
-					walk(vv, append(sofar, k))
-				case []interface{}:
-					if len(sofar)+1 == len(segs) {
-						paths = append(paths, strings.Join(append(sofar, k), "/"))
+		seg := segs[i]
+		switch node := cur.(type) {
+		case map[string]interface{}:
+			nxt, ok := node[seg]
+			if !ok {
+				return nil
+			} // path just doesn't exist; skip
+			return walk(nxt, i+1)
+		case []interface{}:
+			if seg == "*" {
+				for _, elem := range node {
+					if err := walk(elem, i+1); err != nil {
+						return err
 					}
 				}
+				return nil
 			}
-		} else {
-			v, ok := curr[seg]
-			if !ok {
-				return
-			}
-			switch vv := v.(type) {
-			case map[string]interface{}:
-				walk(vv, append(sofar, seg))
-			case []interface{}:
-				if len(sofar)+1 == len(segs) {
-					paths = append(paths, strings.Join(append(sofar, seg), "/"))
+			if idx, ok := isIndex(seg); ok {
+				if idx >= 0 && idx < len(node) {
+					return walk(node[idx], i+1)
 				}
+				return nil
 			}
+			return fmt.Errorf("invalid array segment %q in %q", seg, path)
+		default:
+			return nil // dead path
 		}
 	}
-	walk(cfg, []string{})
-	return paths
+	if err := walk(root, 0); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

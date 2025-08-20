@@ -490,6 +490,32 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 		}
 		return MigrationStep{Op: "mapArray", Path: s.Path, Rule: r}, true
 
+	case "oldmapArray":
+		r := map[string]interface{}{}
+		if b, _ := s.Rule["stringToObject"].(bool); b {
+			r["objectToString"] = true
+			if suf, ok := ruleString(s.Rule, "suffix", ""); ok {
+				r["suffix"] = suf
+			} else if sep, ok := ruleString(s.Rule, "separator", ""); ok {
+				r["suffix"] = sep
+			}
+		} else if b, _ := s.Rule["objectToString"].(bool); b {
+			r["stringToObject"] = true
+			if sep, ok := ruleString(s.Rule, "separator", ""); ok {
+				r["separator"] = sep
+			} else if suf, ok := ruleString(s.Rule, "suffix", ""); ok {
+				r["separator"] = suf
+			}
+			if v, ok := s.Rule["value"]; ok {
+				r["value"] = v
+			} else {
+				r["value"] = true
+			}
+		} else {
+			return MigrationStep{}, false
+		}
+		return MigrationStep{Op: "mapArray", Path: s.Path, Rule: r}, true
+
 	case "set":
 		r := map[string]interface{}{}
 
