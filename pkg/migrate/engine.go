@@ -309,6 +309,7 @@ func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, err
 	if rule == nil {
 		return v, nil
 	}
+
 	// --- old rules ---
 	if b, _ := rule["stringToObject"].(bool); b {
 		sep, _ := ruleString(rule, "separator", ":")
@@ -352,7 +353,7 @@ func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, err
 		return key + suf, nil
 	}
 
-	// --- new conditional rules ---
+	// --- new conditional rules with "else" ---
 	if conds, ok := rule["conditions"].([]interface{}); ok {
 		cur := v
 		applied := false
@@ -370,7 +371,11 @@ func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, err
 			}
 		}
 		if !applied {
-			return cur, nil
+			if elseVal, ok := rule["else"]; ok {
+				v = elseVal
+			} else {
+				v = cur
+			}
 		}
 		return v, nil
 	}
