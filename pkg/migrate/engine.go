@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
@@ -13,6 +14,18 @@ type Engine struct {
 	migrations map[string]Migration // key: from->to
 	graph      map[string][]string  // adjacency list
 	validator  *Validator           // optional schema validator
+}
+
+type conditionFunc func(cur interface{}, arg interface{}) bool
+
+var conditionRegistry = map[string]conditionFunc{
+	"equals": func(cur interface{}, arg interface{}) bool {
+		return reflect.DeepEqual(cur, arg)
+	},
+	"notEquals": func(cur interface{}, arg interface{}) bool {
+		return !reflect.DeepEqual(cur, arg)
+	},
+	// add more here
 }
 
 func NewEngine() *Engine {
@@ -226,7 +239,6 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 		}
 
 		var newVal interface{}
-		// conditional logic
 		if conds, ok := step.Rule["conditions"].([]interface{}); ok {
 			cur, _, _ := getAtPath(cfg, step.Path)
 			applied := false
@@ -244,6 +256,7 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 				}
 			}
 			if !applied {
+				// fallback: leave value as-is
 				newVal = cur
 			}
 		} else if v, ok := step.Rule["value"]; ok {
@@ -263,7 +276,7 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 	return fmt.Errorf("unsupported op %q", step.Op)
 }
 
-func matchesCondition(val interface{}, cond map[string]interface{}) bool {
+func old_matchesCondition(val interface{}, cond map[string]interface{}) bool {
 	if eq, ok := cond["equals"]; ok {
 		return val == eq
 	}
@@ -272,6 +285,17 @@ func matchesCondition(val interface{}, cond map[string]interface{}) bool {
 	}
 	if exists, ok := cond["exists"].(bool); ok {
 		return (val != nil) == exists
+	}
+	return false
+}
+
+func matchesCondition(cur interface{}, pred map[string]interface{}) bool {
+	for key, arg := range pred {
+		if fn, ok := conditionRegistry[key]; ok {
+			if fn(cur, arg) {
+				return true
+			}
+		}
 	}
 	return false
 }
