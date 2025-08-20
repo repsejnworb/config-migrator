@@ -1,0 +1,22 @@
+{
+    "name": "edge1_v2_to_v1",
+    "from": "v2",
+    "to": "v1",
+    "steps": [
+    {
+        "op": "move",
+        "from": "headersToForward",
+        "to": "forwardHostHeader"
+    },
+    {
+        "op": "set",
+        "path": "forwardHostHeader",
+        "rule": {
+        "conditions": [
+            { "if": { "equals": ["HEAD"] }, "then": true },
+            { "if": { "equals": [] }, "then": false }
+        ]
+        }
+    }
+    ]
+}
