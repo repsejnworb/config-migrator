@@ -1,4 +1,4 @@
-package migrator
+package migrate
 
 // Migration describes a version-to-version set of steps.
 type Migration struct {
