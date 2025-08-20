@@ -228,7 +228,6 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 		var newVal interface{}
 		// conditional logic
 		if conds, ok := step.Rule["conditions"].([]interface{}); ok {
-			// get current value
 			cur, _, _ := getAtPath(cfg, step.Path)
 			applied := false
 			for _, c := range conds {
@@ -245,7 +244,7 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 				}
 			}
 			if !applied {
-				newVal = cur // keep original if no condition matched
+				newVal = cur
 			}
 		} else if v, ok := step.Rule["value"]; ok {
 			newVal = v
@@ -274,7 +273,6 @@ func matchesCondition(val interface{}, cond map[string]interface{}) bool {
 	if exists, ok := cond["exists"].(bool); ok {
 		return (val != nil) == exists
 	}
-	// add more predicates as needed
 	return false
 }
 
@@ -282,6 +280,7 @@ func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, err
 	if rule == nil {
 		return v, nil
 	}
+	// --- old rules ---
 	if b, _ := rule["stringToObject"].(bool); b {
 		sep, _ := ruleString(rule, "separator", ":")
 		val, ok := rule["value"]
@@ -323,6 +322,30 @@ func applyItemRule(v interface{}, rule map[string]interface{}) (interface{}, err
 		}
 		return key + suf, nil
 	}
+
+	// --- new conditional rules ---
+	if conds, ok := rule["conditions"].([]interface{}); ok {
+		cur := v
+		applied := false
+		for _, c := range conds {
+			cMap, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if pred, ok := cMap["if"].(map[string]interface{}); ok {
+				if matchesCondition(cur, pred) {
+					v = cMap["then"]
+					applied = true
+					break
+				}
+			}
+		}
+		if !applied {
+			return cur, nil
+		}
+		return v, nil
+	}
+
 	return v, nil
 }
 
@@ -368,11 +391,9 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 	case "move":
 		return MigrationStep{Op: "move", From: s.To, To: s.From}, true
 	case "wrap":
-		// wrap path=P wrapAs=K  ==>  unwrap path=P/K unwrapTo=P
 		p := strings.TrimSuffix(s.Path, "/")
 		return MigrationStep{Op: "unwrap", Path: p + "/" + s.WrapAs, UnwrapTo: p}, true
 	case "unwrap":
-		// unwrap path=P/K unwrapTo=P  ==>  wrap path=P wrapAs=K
 		segs := split(s.Path)
 		if len(segs) == 0 {
 			return MigrationStep{}, false
@@ -381,6 +402,7 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 		return MigrationStep{Op: "wrap", Path: s.UnwrapTo, WrapAs: k}, true
 	case "mapArray":
 		r := map[string]interface{}{}
+		// old rules
 		if b, _ := s.Rule["stringToObject"].(bool); b {
 			r["objectToString"] = true
 			if suf, ok := ruleString(s.Rule, "suffix", ""); ok {
@@ -399,6 +421,31 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 				r["value"] = v
 			} else {
 				r["value"] = true
+			}
+		} else if conds, ok := s.Rule["conditions"].([]interface{}); ok {
+			invConds := []interface{}{}
+			for _, c := range conds {
+				cMap, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if ifCond, ok := cMap["if"].(map[string]interface{}); ok {
+					thenVal := cMap["then"]
+					eqVal, ok := ifCond["equals"]
+					if ok {
+						invConds = append(invConds, map[string]interface{}{
+							"if":   map[string]interface{}{"equals": thenVal},
+							"then": eqVal,
+						})
+					} else {
+						return MigrationStep{}, false
+					}
+				}
+			}
+			if len(invConds) > 0 {
+				r["conditions"] = invConds
+			} else {
+				return MigrationStep{}, false
 			}
 		} else {
 			return MigrationStep{}, false
