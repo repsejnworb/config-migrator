@@ -214,11 +214,55 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 		}
 		return nil
 
+	case "original_set":
+		if hasWildcard(step.Path) {
+			return fmt.Errorf("original_set: wildcards not allowed: %s", step.Path)
+		}
+		return setAtPath(cfg, step.Path, step.Rule["value"]) // use Rule.value for literals
+
 	case "set":
 		if hasWildcard(step.Path) {
 			return fmt.Errorf("set: wildcards not allowed: %s", step.Path)
 		}
-		return setAtPath(cfg, step.Path, step.Rule["value"]) // use Rule.value for literals
+		// default literal value
+		v := step.Rule["value"]
+
+		// check for conditional rules
+		if condsRaw, ok := step.Rule["conditions"].([]interface{}); ok {
+			// get current value at path
+			curVal, ok, err := getAtPath(cfg, step.Path)
+			if err != nil {
+				return fmt.Errorf("conditional set: reading current value: %w", err)
+			}
+
+			if ok { // only apply conditions if path exists
+				for _, c := range condsRaw {
+					condMap, ok := c.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					ifCond, _ := condMap["if"].(map[string]interface{})
+					thenVal := condMap["then"]
+
+					matched := false
+					// currently support simple "equals" condition
+					if eq, exists := ifCond["equals"]; exists {
+						if eq == curVal {
+							matched = true
+						}
+					}
+
+					// extend here with other condition types in future: exists, lt, regex, etc.
+
+					if matched {
+						v = thenVal
+						break
+					}
+				}
+			}
+		}
+
+		return setAtPath(cfg, step.Path, v)
 
 	case "delete":
 		if hasWildcard(step.Path) {
