@@ -465,8 +465,8 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 				}
 				if ifCond, ok := cMap["if"].(map[string]interface{}); ok {
 					thenVal := cMap["then"]
-					eqVal, ok := ifCond["equals"]
-					if ok {
+					// find a value in ifCond to invert
+					if eqVal, ok := ifCond["equals"]; ok {
 						invConds = append(invConds, map[string]interface{}{
 							"if":   map[string]interface{}{"equals": thenVal},
 							"then": eqVal,
@@ -478,6 +478,10 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 			}
 			if len(invConds) > 0 {
 				r["conditions"] = invConds
+				// also invert "else" if present
+				if elseVal, ok := s.Rule["else"]; ok {
+					r["else"] = elseVal
+				}
 			} else {
 				return MigrationStep{}, false
 			}
