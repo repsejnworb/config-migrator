@@ -32,9 +32,15 @@ func (v *Validator) LoadAll(dir string) error {
 		version = version[:len(version)-len(filepath.Ext(version))] // strip .json
 
 		path := filepath.Join(dir, ent.Name())
+		f, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open schema %s: %w", path, err)
+		}
+		defer f.Close()
+
 		compiler := jsonschema.NewCompiler()
-		if err := compiler.AddResource(version, os.Open(path)); err != nil {
-			return fmt.Errorf("load schema %s: %w", ent.Name(), err)
+		if err := compiler.AddResource(path, f); err != nil {
+			return fmt.Errorf("failed to add schema resource %s: %w", path, err)
 		}
 		sch, err := compiler.Compile(version)
 		if err != nil {

@@ -78,7 +78,7 @@ func setAtPath(root map[string]interface{}, path string, val interface{}) error 
 				return nil
 			}
 			// ensure next container exists
-			if idx, ok := isIndex(segs[i+1]); ok {
+			if _, ok := isIndex(segs[i+1]); ok {
 				// next is an array index; we expect current[seg] to be []interface{}
 				nxt, ok := node[seg]
 				if !ok {

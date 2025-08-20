@@ -1,0 +1,14 @@
+{
+  "router": {
+    "listenPort": 8080,
+    "endpoints": {"get": "/api/data", "post": "/api/data"},
+    "middlewares": {"request": ["logger"], "response": ["cors"]},
+    "errorHandling": {"enabled": true, "logLevel": "verbose"},
+    "security": {
+      "enabled": true,
+      "roles": [
+        {"name": "admin", "permissions": [{"execute": true}]}
+      ]
+    }
+  }
+}

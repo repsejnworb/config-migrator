@@ -328,7 +328,6 @@ func invertStep(s MigrationStep) (MigrationStep, bool) {
 			return MigrationStep{}, false
 		}
 		k := segs[len(segs)-1]
-		parent := strings.Join(segs[:len(segs)-1], "/")
 		return MigrationStep{Op: "wrap", Path: s.UnwrapTo, WrapAs: k}, true
 	case "mapArray":
 		r := map[string]interface{}{}

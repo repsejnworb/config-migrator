@@ -1,0 +1,12 @@
+{
+  "router": {
+    "listenPort": 70000, 
+    "endpoints": {"get": "/api/data"},
+    "middlewares": {"request": ["logger"]},
+    "errorHandling": {"enabled": "yes", "logLevel": "warn"},
+    "security": [
+      {"name": "user", "permissions": "read:data"} 
+    ],
+    "securityEnabled": "true" 
+  }
+}
