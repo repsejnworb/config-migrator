@@ -255,9 +255,14 @@ func (e *Engine) applyStep(cfg map[string]interface{}, step MigrationStep) error
 					}
 				}
 			}
+
 			if !applied {
-				// fallback: leave value as-is
-				newVal = cur
+				// check for "else" fallback
+				if elseVal, ok := step.Rule["else"]; ok {
+					newVal = elseVal
+				} else {
+					newVal = cur // keep original if no "else" defined
+				}
 			}
 		} else if v, ok := step.Rule["value"]; ok {
 			newVal = v
